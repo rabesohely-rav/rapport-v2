@@ -1,0 +1,624 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Rapport d'activité annuel – France Services V2</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    :root {
+      --bg: #f4f6f9;
+      --card: #ffffff;
+      --text: #1f2937;
+      --muted: #6b7280;
+      --border: #e5e7eb;
+      --accent: #1d4ed8;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: Arial, Helvetica, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+    }
+    .container {
+      max-width: 1280px;
+      margin: 0 auto;
+      padding: 24px;
+    }
+    .card {
+      background: var(--card);
+      border-radius: 16px;
+      padding: 20px;
+      margin-bottom: 20px;
+      box-shadow: 0 2px 10px rgba(0,0,0,.06);
+      border: 1px solid transparent;
+    }
+    h1, h2, h3 { margin-top: 0; }
+    .muted { color: var(--muted); }
+    .error {
+      display: none;
+      border-color: #fecaca;
+      background: #fef2f2;
+      color: #991b1b;
+    }
+    .success {
+      display: none;
+      border-color: #bbf7d0;
+      background: #f0fdf4;
+      color: #166534;
+    }
+    .toolbar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      align-items: end;
+    }
+    .field {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      min-width: 180px;
+    }
+    .field label {
+      font-size: 14px;
+      color: var(--muted);
+    }
+    .field input, .field select {
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 10px 12px;
+      font-size: 14px;
+      background: white;
+    }
+    .actions {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin-left: auto;
+    }
+    button {
+      border: 0;
+      border-radius: 10px;
+      padding: 11px 14px;
+      font-size: 14px;
+      cursor: pointer;
+      background: var(--accent);
+      color: white;
+    }
+    button.secondary {
+      background: #374151;
+    }
+    .kpi-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+      gap: 16px;
+      margin-bottom: 20px;
+    }
+    .kpi-label {
+      font-size: 14px;
+      color: var(--muted);
+      margin-bottom: 8px;
+    }
+    .kpi-value {
+      font-size: 34px;
+      font-weight: 700;
+      line-height: 1.1;
+    }
+    .chart-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 20px;
+    }
+    canvas {
+      width: 100% !important;
+      height: 350px !important;
+    }
+    .table-wrap {
+      overflow-x: auto;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 8px;
+    }
+    th, td {
+      text-align: left;
+      padding: 10px 12px;
+      border-bottom: 1px solid var(--border);
+      vertical-align: top;
+      font-size: 14px;
+    }
+    th { background: #f9fafb; }
+    .small {
+      font-size: 13px;
+      color: var(--muted);
+    }
+    .pill {
+      display: inline-block;
+      padding: 4px 8px;
+      border-radius: 999px;
+      background: #eff6ff;
+      color: #1e40af;
+      font-size: 12px;
+      margin-right: 6px;
+      margin-top: 6px;
+    }
+    @media (max-width: 900px) {
+      .chart-grid { grid-template-columns: 1fr; }
+      .actions { margin-left: 0; }
+      canvas { height: 300px !important; }
+    }
+    @media print {
+      body { background: white; }
+      .card { box-shadow: none; border: 1px solid #ddd; }
+      .no-print { display: none !important; }
+      button { display: none !important; }
+      .chart-grid { grid-template-columns: 1fr; }
+      a { color: inherit; text-decoration: none; }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <section class="card">
+      <h1>Rapport d’activité annuel – France Services</h1>
+      <p class="muted" id="periode">Chargement des données…</p>
+      <div id="filtersSummary" class="small"></div>
+    </section>
+
+    <section class="card no-print">
+      <div class="toolbar">
+        <div class="field">
+          <label for="dateStart">Date début</label>
+          <input id="dateStart" type="date" />
+        </div>
+        <div class="field">
+          <label for="dateEnd">Date fin</label>
+          <input id="dateEnd" type="date" />
+        </div>
+        <div class="field">
+          <label for="siteSelect">France Services</label>
+          <select id="siteSelect">
+            <option value="__ALL__">Tous les sites</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="topN">Top N</label>
+          <select id="topN">
+            <option value="3">Top 3</option>
+            <option value="5" selected>Top 5</option>
+            <option value="10">Top 10</option>
+          </select>
+        </div>
+        <div class="actions">
+          <button id="applyBtn">Appliquer les filtres</button>
+          <button id="resetBtn" class="secondary">Réinitialiser</button>
+          <button id="printBtn">Exporter en PDF</button>
+        </div>
+      </div>
+      <p class="small">Le site applique les filtres sur tout le rapport. Pour le PDF, le navigateur ouvre l’impression de la vue courante.</p>
+    </section>
+
+    <section class="card success" id="successBox"></section>
+    <section class="card error" id="errorBox"></section>
+
+    <section class="kpi-grid" id="kpis"></section>
+
+    <section class="chart-grid">
+      <div class="card">
+        <h2>Accompagnements par mois</h2>
+        <canvas id="chartMois"></canvas>
+      </div>
+      <div class="card">
+        <h2>Top France Services</h2>
+        <canvas id="chartSites"></canvas>
+      </div>
+    </section>
+
+    <section class="chart-grid">
+      <div class="card">
+        <h2>Top thématiques</h2>
+        <canvas id="chartThematiques"></canvas>
+      </div>
+      <div class="card">
+        <h2>Répartition par statut d’activité</h2>
+        <canvas id="chartStatut"></canvas>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>Lecture rapide</h2>
+      <ul id="insights"></ul>
+    </section>
+
+    <section class="card">
+      <h2>Tableau détaillé</h2>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Date</th>
+              <th>France Services</th>
+              <th>Thématique</th>
+              <th>Statut d’activité</th>
+              <th>Primo-usager</th>
+            </tr>
+          </thead>
+          <tbody id="tableBody"></tbody>
+        </table>
+      </div>
+      <p class="small">Aperçu des 100 premières lignes filtrées.</p>
+    </section>
+  </div>
+
+  <script>
+    let rawData = [];
+    let charts = [];
+
+    function showError(message) {
+      const box = document.getElementById("errorBox");
+      box.style.display = "block";
+      box.innerHTML = `<h3>Erreur</h3><p>${message}</p>`;
+    }
+
+    function showSuccess(message) {
+      const box = document.getElementById("successBox");
+      box.style.display = "block";
+      box.innerHTML = `<strong>${message}</strong>`;
+    }
+
+    function clearMessages() {
+      document.getElementById("errorBox").style.display = "none";
+      document.getElementById("successBox").style.display = "none";
+    }
+
+    async function chargerCSV(url) {
+      const response = await fetch(url, { cache: "no-store" });
+      if (!response.ok) throw new Error(`Impossible de charger ${url} (HTTP ${response.status}).`);
+      const text = await response.text();
+      return parseSemicolonCSV(text);
+    }
+
+    function parseSemicolonCSV(text) {
+      const rows = [];
+      let row = [];
+      let value = "";
+      let inQuotes = false;
+
+      for (let i = 0; i < text.length; i++) {
+        const char = text[i];
+        const next = text[i + 1];
+
+        if (char === '"') {
+          if (inQuotes && next === '"') {
+            value += '"';
+            i++;
+          } else {
+            inQuotes = !inQuotes;
+          }
+        } else if (char === ';' && !inQuotes) {
+          row.push(value);
+          value = "";
+        } else if ((char === '\n' || char === '\r') && !inQuotes) {
+          if (char === '\r' && next === '\n') i++;
+          row.push(value);
+          value = "";
+          if (row.some(cell => cell !== "")) rows.push(row);
+          row = [];
+        } else {
+          value += char;
+        }
+      }
+
+      if (value.length > 0 || row.length > 0) {
+        row.push(value);
+        if (row.some(cell => cell !== "")) rows.push(row);
+      }
+
+      if (!rows.length) return [];
+
+      const headers = rows[0].map(h => (h || "").trim());
+      return rows.slice(1).map(cols => {
+        const obj = {};
+        headers.forEach((header, index) => obj[header] = (cols[index] ?? "").trim());
+        return obj;
+      });
+    }
+
+    function formatNombre(n) {
+      return new Intl.NumberFormat("fr-FR").format(Number(n) || 0);
+    }
+
+    function formatDecimal(n, digits = 1) {
+      return new Intl.NumberFormat("fr-FR", {
+        minimumFractionDigits: digits,
+        maximumFractionDigits: digits
+      }).format(Number(n) || 0);
+    }
+
+    function dateKeyFR(dateStr) {
+      if (!dateStr) return null;
+      const datePart = dateStr.split(" ")[0];
+      const parts = datePart.split("/");
+      if (parts.length !== 3) return null;
+      const [jour, mois, annee] = parts;
+      if (!jour || !mois || !annee) return null;
+      return `${annee}-${(mois || "").padStart(2, "0")}-${(jour || "").padStart(2, "0")}`;
+    }
+
+    function monthKeyFR(dateStr) {
+      const key = dateKeyFR(dateStr);
+      return key ? key.slice(0, 7) : null;
+    }
+
+    function formatMonthKey(key) {
+      const noms = ["janv.", "févr.", "mars", "avr.", "mai", "juin", "juil.", "août", "sept.", "oct.", "nov.", "déc."];
+      const [annee, mois] = key.split("-");
+      return `${noms[Number(mois) - 1]} ${annee}`;
+    }
+
+    function toFRDate(isoDate) {
+      if (!isoDate) return "";
+      return isoDate.split("-").reverse().join("/");
+    }
+
+    function topEntries(obj, limit = 5) {
+      return Object.entries(obj).sort((a, b) => b[1] - a[1]).slice(0, limit);
+    }
+
+    function groupCount(data, key) {
+      const out = {};
+      data.forEach(row => {
+        const val = (row[key] || "Non renseigné").trim() || "Non renseigné";
+        out[val] = (out[val] || 0) + 1;
+      });
+      return out;
+    }
+
+    function uniqueCount(data, key) {
+      return new Set(data.map(r => (r[key] || "").trim()).filter(Boolean)).size;
+    }
+
+    function destroyCharts() {
+      charts.forEach(c => c.destroy());
+      charts = [];
+    }
+
+    function setKPI(container, label, value) {
+      const div = document.createElement("div");
+      div.className = "card";
+      div.innerHTML = `<div class="kpi-label">${label}</div><div class="kpi-value">${value}</div>`;
+      container.appendChild(div);
+    }
+
+    function populateSiteSelect(data) {
+      const select = document.getElementById("siteSelect");
+      const current = select.value;
+      const sites = [...new Set(data.map(r => (r.nom_FS || "").trim()).filter(Boolean))].sort((a,b) => a.localeCompare(b));
+      select.innerHTML = '<option value="__ALL__">Tous les sites</option>';
+      sites.forEach(site => {
+        const option = document.createElement("option");
+        option.value = site;
+        option.textContent = site;
+        select.appendChild(option);
+      });
+      if ([...select.options].some(o => o.value === current)) select.value = current;
+    }
+
+    function setDefaultDates(data) {
+      const dates = data.map(r => dateKeyFR(r.date_creation)).filter(Boolean).sort();
+      if (!dates.length) return;
+      document.getElementById("dateStart").value = dates[0];
+      document.getElementById("dateEnd").value = dates[dates.length - 1];
+      document.getElementById("periode").textContent = `Période couverte : ${toFRDate(dates[0])} au ${toFRDate(dates[dates.length - 1])}`;
+    }
+
+    function getFilters() {
+      return {
+        start: document.getElementById("dateStart").value || null,
+        end: document.getElementById("dateEnd").value || null,
+        site: document.getElementById("siteSelect").value || "__ALL__",
+        topN: Number(document.getElementById("topN").value || 5)
+      };
+    }
+
+    function applyFilters(data, filters) {
+      return data.filter(row => {
+        const d = dateKeyFR(row.date_creation);
+        const site = (row.nom_FS || "").trim();
+        if (!d) return false;
+        if (filters.start && d < filters.start) return false;
+        if (filters.end && d > filters.end) return false;
+        if (filters.site !== "__ALL__" && site !== filters.site) return false;
+        return true;
+      });
+    }
+
+    function renderFiltersSummary(filters, filteredCount) {
+      const el = document.getElementById("filtersSummary");
+      const pills = [
+        `<span class="pill">Du ${toFRDate(filters.start)}</span>`,
+        `<span class="pill">Au ${toFRDate(filters.end)}</span>`,
+        `<span class="pill">${filters.site === "__ALL__" ? "Tous les sites" : filters.site}</span>`,
+        `<span class="pill">Top ${filters.topN}</span>`,
+        `<span class="pill">${formatNombre(filteredCount)} lignes filtrées</span>`
+      ];
+      el.innerHTML = pills.join("");
+    }
+
+    function renderTable(data) {
+      const tbody = document.getElementById("tableBody");
+      tbody.innerHTML = "";
+      data.slice(0, 100).forEach(row => {
+        const tr = document.createElement("tr");
+        tr.innerHTML = `
+          <td>${row.date_creation || ""}</td>
+          <td>${row.nom_FS || ""}</td>
+          <td>${row.thematique || "Non renseigné"}</td>
+          <td>${row.statut_activite || "Non renseigné"}</td>
+          <td>${row.primo_usager || "Non renseigné"}</td>
+        `;
+        tbody.appendChild(tr);
+      });
+    }
+
+    function renderDashboard(filtered, filters) {
+      destroyCharts();
+
+      const kpis = document.getElementById("kpis");
+      kpis.innerHTML = "";
+
+      const nbSites = new Set(filtered.map(r => (r.nom_FS || "").trim()).filter(Boolean)).size;
+      const nbAccompagnements = filtered.length;
+      const nbUsagers = uniqueCount(filtered, "id_usager");
+      const primoOui = filtered.filter(r => (r.primo_usager || "").toLowerCase().includes("oui")).length;
+      const partPrimo = nbAccompagnements ? (primoOui / nbAccompagnements) * 100 : 0;
+      const days = new Set(filtered.map(r => dateKeyFR(r.date_creation)).filter(Boolean));
+      const moyenneJour = days.size ? (nbAccompagnements / days.size) : 0;
+
+      setKPI(kpis, "Nombre de France Services", formatNombre(nbSites));
+      setKPI(kpis, "Nombre total d’accompagnements", formatNombre(nbAccompagnements));
+      setKPI(kpis, "Nombre total d’usagers uniques", formatNombre(nbUsagers));
+      setKPI(kpis, "Moyenne d’accompagnements par jour", formatDecimal(moyenneJour));
+      setKPI(kpis, "Part de primo-usagers", `${formatDecimal(partPrimo)} %`);
+
+      const moisCounts = {};
+      filtered.forEach(r => {
+        const key = monthKeyFR(r.date_creation);
+        if (key) moisCounts[key] = (moisCounts[key] || 0) + 1;
+      });
+      const moisTries = Object.keys(moisCounts).sort();
+
+      const topSites = topEntries(groupCount(filtered, "nom_FS"), filters.topN);
+      const topThematiques = topEntries(groupCount(filtered, "thematique"), filters.topN);
+      const statuts = topEntries(groupCount(filtered, "statut_activite"), filters.topN);
+
+      charts.push(new Chart(document.getElementById("chartMois"), {
+        type: "line",
+        data: {
+          labels: moisTries.map(formatMonthKey),
+          datasets: [{
+            label: "Accompagnements",
+            data: moisTries.map(m => moisCounts[m]),
+            borderWidth: 2,
+            tension: 0.2
+          }]
+        },
+        options: { responsive: true, maintainAspectRatio: false }
+      }));
+
+      charts.push(new Chart(document.getElementById("chartSites"), {
+        type: "bar",
+        data: {
+          labels: topSites.map(x => x[0]),
+          datasets: [{
+            label: "Accompagnements",
+            data: topSites.map(x => x[1]),
+            borderWidth: 1
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          indexAxis: "y"
+        }
+      }));
+
+      charts.push(new Chart(document.getElementById("chartThematiques"), {
+        type: "bar",
+        data: {
+          labels: topThematiques.map(x => x[0]),
+          datasets: [{
+            label: "Nombre",
+            data: topThematiques.map(x => x[1]),
+            borderWidth: 1
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          indexAxis: "y"
+        }
+      }));
+
+      charts.push(new Chart(document.getElementById("chartStatut"), {
+        type: "pie",
+        data: {
+          labels: statuts.map(x => x[0]),
+          datasets: [{
+            data: statuts.map(x => x[1]),
+            borderWidth: 1
+          }]
+        },
+        options: { responsive: true, maintainAspectRatio: false }
+      }));
+
+      const insights = document.getElementById("insights");
+      insights.innerHTML = "";
+      const bestSite = topSites[0];
+      const bestTheme = topThematiques[0];
+      [
+        `Le réseau a traité ${formatNombre(nbAccompagnements)} accompagnements sur la période filtrée.`,
+        `Le nombre d’usagers uniques estimé est de ${formatNombre(nbUsagers)}.`,
+        `La part de primo-usagers atteint ${formatDecimal(partPrimo)} %.`,
+        bestSite ? `Le site le plus sollicité est ${bestSite[0]} avec ${formatNombre(bestSite[1])} accompagnements.` : "",
+        bestTheme ? `La thématique la plus fréquente est « ${bestTheme[0]} » avec ${formatNombre(bestTheme[1])} occurrences.` : ""
+      ].filter(Boolean).forEach(txt => {
+        const li = document.createElement("li");
+        li.textContent = txt;
+        insights.appendChild(li);
+      });
+
+      renderFiltersSummary(filters, filtered.length);
+      renderTable(filtered);
+    }
+
+    async function init() {
+      clearMessages();
+      try {
+        rawData = await chargerCSV("data/data.csv");
+        if (!rawData.length) throw new Error("Le fichier data/data.csv est vide ou illisible.");
+
+        const required = ["date_creation", "nom_FS", "id_usager", "primo_usager"];
+        const headers = Object.keys(rawData[0] || {});
+        const missing = required.filter(col => !headers.includes(col));
+        if (missing.length) throw new Error(`Colonnes obligatoires manquantes : ${missing.join(", ")}.`);
+
+        rawData = rawData.filter(r => r.date_creation && r.nom_FS);
+        if (!rawData.length) throw new Error("Aucune ligne exploitable trouvée après filtrage initial.");
+
+        populateSiteSelect(rawData);
+        setDefaultDates(rawData);
+        applyCurrentFilters();
+
+        showSuccess(`CSV chargé avec succès : ${formatNombre(rawData.length)} lignes exploitables.`);
+      } catch (error) {
+        console.error(error);
+        showError(`${error.message} Vérifie que le fichier <strong>data/data.csv</strong> existe, qu’il est séparé par des points-virgules et que les colonnes attendues sont présentes.`);
+      }
+    }
+
+    function applyCurrentFilters() {
+      const filters = getFilters();
+      const filtered = applyFilters(rawData, filters);
+      document.getElementById("periode").textContent = `Période affichée : ${toFRDate(filters.start)} au ${toFRDate(filters.end)}`;
+      renderDashboard(filtered, filters);
+    }
+
+    function resetFilters() {
+      populateSiteSelect(rawData);
+      setDefaultDates(rawData);
+      document.getElementById("siteSelect").value = "__ALL__";
+      document.getElementById("topN").value = "5";
+      applyCurrentFilters();
+    }
+
+    document.getElementById("applyBtn").addEventListener("click", applyCurrentFilters);
+    document.getElementById("resetBtn").addEventListener("click", resetFilters);
+    document.getElementById("printBtn").addEventListener("click", () => window.print());
+
+    init();
+  </script>
+</body>
+</html>
